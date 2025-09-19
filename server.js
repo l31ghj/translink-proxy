@@ -1,24 +1,24 @@
 import express from 'express';
 import fetch from 'node-fetch';
 import GtfsRealtimeBindings from 'gtfs-realtime-bindings';
+import cors from 'cors';
 
 const app = express();
 
-// Convert the upstream protobuf feed to JSON
+// Enable CORS for all routes
+app.use(cors());
+
+// JSON proxy route
 app.get('/TripUpdates', async (req, res) => {
   try {
     const feedUrl = 'https://gtfsrt.api.translink.com.au/api/realtime/SEQ/TripUpdates';
-
-    // Fetch as binary
     const upstream = await fetch(feedUrl);
     const buffer = await upstream.arrayBuffer();
 
-    // Decode protobuf
     const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
       new Uint8Array(buffer)
     );
 
-    // Send JSON to browser
     res.json(feed.toJSON());
   } catch (err) {
     console.error(err);
@@ -27,6 +27,4 @@ app.get('/TripUpdates', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`Proxy running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Proxy running on port ${PORT}`));
