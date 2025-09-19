@@ -1,27 +1,32 @@
-import express from "express";
-import fetch from "node-fetch";
+import express from 'express';
+import fetch from 'node-fetch';
+import GtfsRealtimeBindings from 'gtfs-realtime-bindings';
 
 const app = express();
-const PORT = process.env.PORT || 8080;
 
-// CORS so your PID can fetch from browser
-app.use((_req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-  next();
-});
-
-// Proxy route: raw protobuf
-app.get("/tripupdates", async (_req, res) => {
+// Convert the upstream protobuf feed to JSON
+app.get('/TripUpdates', async (req, res) => {
   try {
-    const resp = await fetch("https://gtfsrt.api.translink.com.au/api/realtime/SEQ/TripUpdates");
-    if (!resp.ok) throw new Error(`Feed error ${resp.status}`);
-    res.setHeader("Content-Type", "application/octet-stream");
-    resp.body.pipe(res);
+    const feedUrl = 'https://gtfsrt.api.translink.com.au/api/realtime/SEQ/TripUpdates';
+
+    // Fetch as binary
+    const upstream = await fetch(feedUrl);
+    const buffer = await upstream.arrayBuffer();
+
+    // Decode protobuf
+    const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
+      new Uint8Array(buffer)
+    );
+
+    // Send JSON to browser
+    res.json(feed.toJSON());
   } catch (err) {
     console.error(err);
-    res.status(500).send("Error fetching GTFS RT feed");
+    res.status(500).json({ error: 'Failed to fetch or decode feed' });
   }
 });
 
-app.listen(PORT, () => console.log(`Proxy running on port ${PORT}`));
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`Proxy running on port ${PORT}`);
+});
